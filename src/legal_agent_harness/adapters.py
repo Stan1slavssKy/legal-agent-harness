@@ -90,10 +90,14 @@ class LocalProcessAdapter(Adapter):
         cwd: Optional[str] = None,
     ) -> None:
         if isinstance(command, str):
+            # Строка команды задаётся в POSIX-кавычках (см. shlex.quote/shlex.join),
+            # поэтому и разбираем её всегда в POSIX-режиме. Раньше на Windows
+            # брался posix=False, и кавычки оставались частью пути
+            # («'C:\...\agent.py'»), из-за чего процесс не запускался.
             command = (
                 [command]
                 if use_shell
-                else shlex.split(command, posix=os.name != "nt")
+                else shlex.split(command, posix=True)
             )
         if not command:
             raise AdapterError("команда не задана")

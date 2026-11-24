@@ -3,6 +3,7 @@
 
 Команды:
   validate-cases  проверить JSONL с кейсами
+  export-cases    экспортировать все поправки графа в JSONL-кейсы
   run             прогнать кейсы через адаптер
   replay          прогнать кейсы через заготовленные ответы
   report          вывести отчёт по прогону
@@ -37,6 +38,7 @@ from legal_agent_harness import (  # noqa: E402
     CaseValidationError,
     HarnessError,
     Redactor,
+    build_cases,
     load_cases,
     load_responses,
     run_case,
@@ -209,6 +211,30 @@ def cmd_report(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_export_cases(args: argparse.Namespace) -> int:
+    """Экспортирует все поправки графа после валидации и редакции секретов."""
+    redactor = Redactor()
+    try:
+        with open(args.graph, encoding="utf-8-sig") as fh:
+            graph = json.load(fh, object_pairs_hook=_reject_duplicate_keys)
+        cases = redactor.scrub(build_cases(graph))
+        text = "".join(json.dumps(case, ensure_ascii=False) + "\n" for case in cases)
+        # Ошибка кодировки не должна очищать уже существующий файл --out.
+        text.encode("utf-8")
+    except (HarnessError, json.JSONDecodeError, _DuplicateKeyError, UnicodeError) as exc:
+        print(f"ОШИБКА экспорта кейсов: {redactor.scrub(str(exc))}", file=sys.stderr)
+        return EXIT_ERROR
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(text)
+    print(text, end="")
+    print(
+        f"Экспортировано кейсов: {len(cases)}. Требуется проверка экспертом.",
+        file=sys.stderr,
+    )
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_harness.py",
@@ -225,6 +251,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_validate.add_argument("cases", help="путь к JSONL с кейсами")
     p_validate.set_defaults(func=cmd_validate_cases)
+
+    p_export = sub.add_parser(
+        "export-cases",
+        help="экспортировать все поправки графа в JSONL-кейсы",
+        description="Экспорт черновых кейсов для проверки экспертом (без сети).",
+    )
+    p_export.add_argument("graph", help="путь к JSON-графу из extract_graph")
+    p_export.add_argument("--out", help="файл JSONL; кейсы также выводятся в stdout")
+    p_export.set_defaults(func=cmd_export_cases)
 
     p_run = sub.add_parser(
         "run",

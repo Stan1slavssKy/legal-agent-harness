@@ -37,11 +37,8 @@ def test_unknown_predicate_rejected():
         load_cases(_fixture("invalid_predicate"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="P25: дата 2013-02-30 проходит, проверяется только формат ГГГГ-ММ-ДД",
-)
 def test_impossible_date_rejected():
+    """Дата 2013-02-30 отвергается (календарная проверка добавлена в P25)."""
     with pytest.raises(CaseValidationError, match="effective_from"):
         load_cases(_fixture("invalid_date"))
 
